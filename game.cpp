@@ -195,7 +195,11 @@ int game_run(int argc,char **argv) {
             puts("Command too long");
             continue;
         }
-        game_command(&game,line);
+        game_command(&game, line);
+
+        if (game.running) {
+            map_draw(&game.map, game.hero.row, game.hero.col);
+        }
     }
     game_free(&game);
     return 0;
