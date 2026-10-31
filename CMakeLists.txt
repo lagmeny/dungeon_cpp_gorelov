@@ -1,6 +1,9 @@
-cmake_minimum_required(VERSION 4.3)
-project(untitled3)
-
+cmake_minimum_required(VERSION 3.10)
+project(console_shaft_gorelov LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
-
-add_executable(untitled3 main.cpp)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+add_executable(console_shaft_gorelov Main.cpp game.cpp map.cpp entities.cpp)
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(console_shaft_gorelov PRIVATE -Wall -Wextra -Werror -pedantic)
+endif()
