@@ -1,121 +1,98 @@
-#include "map.hpp"
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <string.h>
-#define MAX_DIM 200
-GameError map_create(Map *m,size_t h,size_t w) {
-    if(!m)return GAME_BAD_SIZE;
-    if(h<3||w<3||h>MAX_DIM||w>MAX_DIM||h>SIZE_MAX/w)return GAME_BAD_SIZE;
-    char *p=static_cast<char *>(malloc(h*w));
-    if(!p)return GAME_NO_MEMORY;
-    m->cells=p;
-    m->height=h;
-    m->width=w;
-    for(size_t r=0;r<h;r++)for(size_t c=0;c<w;c++)p[r*w+c]=(r==0||c==0||r==h-1||c==w-1)?'#':'.';
-    return GAME_OK;
+#include "Map.hpp"
+#include <fstream>
+#include <iostream>
+#include <stdexcept>
+#include <string>
+#include <vector>
+
+// Constructor allocates and initializes the map; ownership belongs to this object.
+Map::Map(std::size_t height, std::size_t width) : height_(height), width_(width), cells_(nullptr) {
+    if (height < 3 || width < 3 || height > 200 || width > 200)
+        throw std::invalid_argument("invalid map size (3..200)");
+    cells_ = new char[height_ * width_];
+    for (std::size_t r = 0; r < height_; ++r)
+        for (std::size_t c = 0; c < width_; ++c)
+            cells_[r * width_ + c] = (r == 0 || c == 0 || r + 1 == height_ || c + 1 == width_) ? '#' : '.';
+    std::cout << "[Map constructor] " << height_ << "x" << width_ << "\n";
 }
-void map_free(Map *m) {
-    if(!m)return;
-    free(m->cells);
-    m->cells=NULL;
-    m->height=m->width=0;
+
+// Destructor releases exactly the block acquired by the constructor (RAII).
+Map::~Map() {
+    delete[] cells_;
+    std::cout << "[Map destructor]\n";
 }
-char *map_cell(Map *m,size_t r,size_t c) {
-    return m&&m->cells&&r<m->height&&c<m->width?&m->cells[r*m->width+c]:NULL;
+
+// Returns a cell character after bounds checking.
+char Map::get(std::size_t row, std::size_t col) const {
+    if (row >= height_ || col >= width_) throw std::out_of_range("cell outside map");
+    return cells_[row * width_ + col];
 }
-char map_get(const Map *m,size_t r,size_t c) {
-    return m&&m->cells&&r<m->height&&c<m->width?m->cells[r*m->width+c]:'\0';
+
+// Changes a cell after bounds checking.
+void Map::set(std::size_t row, std::size_t col, char value) {
+    if (row >= height_ || col >= width_) throw std::out_of_range("cell outside map");
+    cells_[row * width_ + col] = value;
 }
-bool map_info(const Map *m,int r,int c,char *type,bool *passable) {
-    if(!m||!type||!passable||r<0||c<0||(size_t)r>=m->height||(size_t)c>=m->width)return false;
-    *type=map_get(m,(size_t)r,(size_t)c);
-    *passable=*type!='#';
-    return true;
+
+// Checks whether the requested position is inside the map and is not a wall.
+bool Map::passable(int row, int col) const {
+    return row >= 0 && col >= 0 && static_cast<std::size_t>(row) < height_ &&
+           static_cast<std::size_t>(col) < width_ &&
+           get(static_cast<std::size_t>(row), static_cast<std::size_t>(col)) != '#';
 }
-void map_draw(const Map *m,int hr,int hc) {
-    for(size_t r=0;r<m->height;r++) {
-        for(size_t c=0;c<m->width;c++)putchar((int)r==hr&&(int)c==hc?'@':map_get(m,r,c));
-        putchar('\n');
+
+// Prints the map, drawing the hero over the underlying cell.
+void Map::draw(int heroRow, int heroCol) const {
+    for (std::size_t r = 0; r < height_; ++r) {
+        for (std::size_t c = 0; c < width_; ++c)
+            std::cout << ((static_cast<int>(r) == heroRow && static_cast<int>(c) == heroCol) ? '@' : get(r, c));
+        std::cout << '\n';
     }
 }
-/* Each recursive call checks bounds before indexing. The separate visited buffer is reset for each search. */
-static bool dfs(const Map *m,int r,int c,unsigned char *seen) {
-    if(r<0||c<0||(size_t)r>=m->height||(size_t)c>=m->width)return false;
-    size_t pos=(size_t)r*m->width+(size_t)c;
-    if(seen[pos]||m->cells[pos]=='#')return false;
-    seen[pos]=1;
-    if(m->cells[pos]=='E')return true;
-    return dfs(m,r-1,c,seen)||dfs(m,r+1,c,seen)||dfs(m,r,c-1,seen)||dfs(m,r,c+1,seen);
-}
-bool map_reachable(const Map *m,int r,int c) {
-    if(!m||!m->cells)return false;
-    unsigned char *seen=static_cast<unsigned char *>(calloc(m->height*m->width,1));
-    if(!seen)return false;
-    bool found=dfs(m,r,c,seen);
-    free(seen);
-    return found;
-}
-GameError map_load(Map *out,const char *path) {
-    if(!out||!path)return GAME_BAD_FORMAT;
-    FILE *f=fopen(path,"rb");
-    if(!f)return GAME_FILE_NOT_FOUND;
-    char line[MAX_DIM+3];
-    size_t width=0,height=0,exits=0,starts=0;
-    char *data=NULL;
-    GameError error=GAME_OK;
-    while(fgets(line,sizeof(line),f)) {
-        size_t len=strcspn(line,"\r\n");
-        if(len==0||len>MAX_DIM||(width&&len!=width)||height==MAX_DIM) {
-            error=GAME_BAD_FORMAT;
-            break;
+
+// Returns the number of map rows.
+std::size_t Map::height() const { return height_; }
+
+// Returns the number of map columns.
+std::size_t Map::width() const { return width_; }
+
+// Validates the entire file before creating the map, so errors never leak a map object.
+Map* Map::load(const std::string& filename, int& startRow, int& startCol) {
+    std::ifstream file(filename);
+    if (!file) throw std::runtime_error("level file not found: " + filename);
+    std::vector<std::string> lines;
+    std::string line;
+    std::size_t starts = 0, exits = 0;
+    int foundRow = -1, foundCol = -1;
+    while (std::getline(file, line)) {
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+        if (line.empty() || line.size() > 200 || (!lines.empty() && line.size() != lines[0].size()))
+            throw std::runtime_error("damaged level format: inconsistent row size");
+        for (std::size_t c = 0; c < line.size(); ++c) {
+            char ch = line[c];
+            if (ch != '#' && ch != '.' && ch != '$' && ch != 'E' && ch != '@')
+                throw std::runtime_error("damaged level format: unknown symbol");
+            if (ch == '@') { ++starts; foundRow = static_cast<int>(lines.size()); foundCol = static_cast<int>(c); }
+            if (ch == 'E') ++exits;
         }
-        if(!width)width=len;
-        if(line[len]=='\r'&&line[len+1]!='\n') {
-            error=GAME_BAD_FORMAT;
-            break;
-        }
-        char *next=static_cast<char *>(realloc(data,(height+1)*width));
-        if(!next) {
-            error=GAME_NO_MEMORY;
-            break;
-        }
-        data=next;
-        for(size_t i=0;i<width;i++) {
-            char ch=line[i];
-            if(ch!='#'&&ch!='.'&&ch!='$'&&ch!='E'&&ch!='@') {
-                error=GAME_BAD_FORMAT;
-                break;
-            }
-            if(ch=='E')exits++;
-            if(ch=='@')starts++;
-            data[height*width+i]=ch;
-        }
-        if(error!=GAME_OK)break;
-        height++;
+        lines.push_back(line);
+        if (lines.size() > 200) throw std::runtime_error("damaged level format: too many rows");
     }
-    if(ferror(f))error=GAME_BAD_FORMAT;
-    if(fclose(f)!=0&&error==GAME_OK)error=GAME_BAD_FORMAT;
-    if(error==GAME_OK&&(height<3||width<3||exits!=1||starts!=1))error=GAME_BAD_FORMAT;
-    if(error==GAME_OK) {
-        for(size_t r=0;r<height;r++)for(size_t c=0;c<width;c++)if((r==0||c==0||r==height-1||c==width-1)&&data[r*width+c]!='#')error=GAME_BAD_FORMAT;
-    }
-    if(error!=GAME_OK) {
-        free(data);
-        return error;
-    }
-    out->cells=data;
-    out->height=height;
-    out->width=width;
-    return GAME_OK;
-}
-const char *game_error_string(GameError e) {
-    switch(e) {
-        case GAME_OK:return "success";
-        case GAME_FILE_NOT_FOUND:return "file not found";
-        case GAME_BAD_FORMAT:return "damaged level format";
-        case GAME_NO_MEMORY:return "out of memory";
-        case GAME_BAD_SIZE:return "invalid map size";
-    }
-    return "unknown error";
+    if (file.bad()) throw std::runtime_error("error reading level file");
+    if (lines.size() < 3 || lines[0].size() < 3 || starts != 1 || exits != 1)
+        throw std::runtime_error("damaged level format: size, start or exit");
+    for (std::size_t r = 0; r < lines.size(); ++r)
+        for (std::size_t c = 0; c < lines[r].size(); ++c)
+            if ((r == 0 || c == 0 || r + 1 == lines.size() || c + 1 == lines[r].size()) && lines[r][c] != '#')
+                throw std::runtime_error("damaged level format: border must be walls");
+    // Construct only after validation; the caller takes ownership of the returned pointer.
+    Map* result = new Map(lines.size(), lines[0].size());
+    try {
+        for (std::size_t r = 0; r < lines.size(); ++r)
+            for (std::size_t c = 0; c < lines[r].size(); ++c)
+                result->set(r, c, lines[r][c] == '@' ? '.' : lines[r][c]);
+    } catch (...) { delete result; throw; }
+    startRow = foundRow;
+    startCol = foundCol;
+    return result;
 }
