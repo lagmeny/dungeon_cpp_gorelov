@@ -1,19 +1,13 @@
-#ifndef DUNGEON_HERO_HPP
-#define DUNGEON_HERO_HPP
-class Map;
-class Hero {
+#pragma once
+#include "Creature.hpp"
+
+class Hero final : public Creature {
+    int gold_ = 0;
 public:
-    Hero();
-    Hero(int row, int col, int health, int gold);
-    bool move(int dr, int dc, Map& map);
-    void takeDamage(int amount);
-    void status() const;
-    int row() const;
-    int col() const;
-private:
-    int row_;
-    int col_;
-    int health_;
-    int gold_;
+    Hero(int row, int col, int hp = 100);
+    int gold() const noexcept { return gold_; }
+    void turn(Game& game) override;
+    bool move(Game& game, int dr, int dc);
+    void collectGold() noexcept { ++gold_; }
 };
-#endif
+

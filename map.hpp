@@ -1,24 +1,20 @@
-#ifndef DUNGEON_MAP_HPP
-#define DUNGEON_MAP_HPP
+#pragma once
 #include <cstddef>
+#include <memory>
 #include <string>
 
 class Map {
+    std::size_t height_, width_;
+    std::unique_ptr<char[]> cells_;
 public:
     Map(std::size_t height, std::size_t width);
-    ~Map();
     Map(const Map&) = delete;
     Map& operator=(const Map&) = delete;
+    std::size_t height() const noexcept { return height_; }
+    std::size_t width() const noexcept { return width_; }
     char get(std::size_t row, std::size_t col) const;
+    bool passable(int row, int col) const noexcept;
     void set(std::size_t row, std::size_t col, char value);
-    bool passable(int row, int col) const;
-    void draw(int heroRow, int heroCol) const;
-    std::size_t height() const;
-    std::size_t width() const;
-    static Map* load(const std::string& filename, int& startRow, int& startCol);
-private:
-    std::size_t height_;
-    std::size_t width_;
-    char* cells_;
+    static std::unique_ptr<Map> load(const std::string& path, int& row, int& col);
 };
-#endif
+
